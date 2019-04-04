@@ -1,0 +1,32 @@
+sudo: false
+
+language: scala
+
+jdk: oraclejdk8
+
+scala: 2.12.8
+
+services:
+  - docker
+
+before_cache:
+  # Cleanup the cached directories to avoid unnecessary cache updates
+  - find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
+  - rm -f $HOME/.cache/pip/log/debug.log
+
+cache:
+  directories:
+    - $HOME/.ivy2/cache
+    - $HOME/.cache/pip
+    - $HOME/.sbt/boot
+    - $HOME/.coursier/cache
+
+jobs:
+  include:
+    - script:
+      - docker-compose up -d
+      - timeout 20 ./docker-compose-healthycheck.sh kafka010
+      - timeout 20 ./docker-compose-healthycheck.sh kafka210
+      - sbt test
+
+

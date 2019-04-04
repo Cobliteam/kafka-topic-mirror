@@ -1,0 +1,71 @@
+version: '3.4'
+
+
+x-kafka-common: &kafka-common
+  image: confluentinc/cp-kafka:3.2.2
+  restart: always
+  depends_on:
+    - zoo010-1
+    - zoo010-2
+    - zoo010-3
+
+x-kafka-env-common: &kafka-common-env
+  KAFKA_ZOOKEEPER_CONNECT: zoo010-1:2181,zoo010-2:2181,zoo010-3:2181
+  KAFKA_DELETE_TOPIC_ENABLE: "true"
+  KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+x-zoo-common: &zoo-common
+  image: zookeeper
+  restart: always
+
+x-zoo-env-common: &zoo-common-env
+  ZOO_INIT_LIMIT: 30
+  ZOO_SYNC_LIMIT: 30
+
+services:
+
+
+  zoo010-1:
+    <<: *zoo-common
+    ports:
+      - 2181:2181
+    environment:
+      <<: *zoo-common-env
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=0.0.0.0:2888:3888 server.2=zoo010-2:2888:3888 server.3=zoo010-3:2888:3888
+
+  zoo010-2:
+    <<: *zoo-common
+    environment:
+      <<: *zoo-common-env
+      ZOO_MY_ID: 2
+      ZOO_SERVERS: server.1=zoo010-1:2888:3888 server.2=0.0.0.0:2888:3888 server.3=zoo010-3:2888:3888
+
+  zoo010-3:
+    <<: *zoo-common
+    environment:
+      <<: *zoo-common-env
+      ZOO_MY_ID: 3
+      ZOO_SERVERS: server.1=zoo010-1:2888:3888 server.2=zoo010-2:2888:3888 server.3=0.0.0.0:2888:3888
+
+  kafka010-1:
+    <<: *kafka-common
+    environment:
+      <<: *kafka-common-env
+      KAFKA_BROKER_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka010-1:9092
+
+
+  kafka010-2:
+    <<: *kafka-common
+    environment:
+      <<: *kafka-common-env
+      KAFKA_BROKER_ID: 2
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka010-2:9092
+
+  kafka010-3:
+    <<: *kafka-common
+    environment:
+      <<: *kafka-common-env
+      KAFKA_BROKER_ID: 3
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka010-3:9092

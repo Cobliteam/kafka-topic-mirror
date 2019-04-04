@@ -1,0 +1,39 @@
+*.class
+*.log
+logs/
+
+# sbt specific
+.cache
+.history
+.lib/
+dist/*
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+native/
+
+# Scala-IDE specific
+.scala_dependencies
+.worksheet
+*.sc
+.idea/*
+
+# Ipython
+*.ipynb*
+
+# leveldb
+journal/
+
+# Mac
+.DS_Store
+
+# Ensime
+.ensime
+.ensime_cache/
+
+# Emacs temp files
+.#*
+\#*#
+*~
