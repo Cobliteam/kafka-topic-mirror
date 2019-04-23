@@ -9,7 +9,7 @@ import java.security.Permission
   */
 trait SystemExitInterceptor {
 
-  sealed case class ExitException(status: Int) extends SecurityException("System.exit() is not allowed")
+  sealed case class ExitException(status: Int) extends Throwable(s"System.exit() is called with status $status")
 
   def setupSystemExitInterceptor(): Unit = {
     System.setSecurityManager(new SecurityManager {

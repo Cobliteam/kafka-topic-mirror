@@ -1,6 +1,7 @@
 FROM openjdk:8-alpine
 RUN apk add bash
-COPY ./target/scala-2.12/kafka-topic-mirror.jar /tmp
-COPY ./entrypoint.sh /tmp
-WORKDIR /tmp
+RUN mkdir /app
+COPY ./target/scala-2.12/kafka-topic-mirror.jar /app
+COPY ./entrypoint.sh /app
+WORKDIR /app
 ENTRYPOINT ["./entrypoint.sh"]

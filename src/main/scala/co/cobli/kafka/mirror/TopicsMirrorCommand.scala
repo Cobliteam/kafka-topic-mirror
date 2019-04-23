@@ -1,12 +1,10 @@
 
 package co.cobli.kafka.mirror
 
-import java.util.Properties
-
 import scala.collection.JavaConverters._
 import scala.collection._
 
-import joptsimple.{ArgumentAcceptingOptionSpec, OptionParser, OptionSet, OptionSpec, OptionSpecBuilder}
+import joptsimple.{ArgumentAcceptingOptionSpec, OptionParser, OptionSpec}
 import kafka.utils.{CommandLineUtils, Exit, Logging}
 import kafka.zk.KafkaZkClient
 import org.apache.kafka.clients.admin._
@@ -31,64 +29,95 @@ object TopicsMirrorCommand extends Logging with TopicMirroring {
 
     opts.checkArgs()
 
-    val zkClientSrc = KafkaZkClient(
-      connectString = opts.options.valueOf(opts.zkConnectOptSrc),
-      isSecure = false,
-      sessionTimeoutMs = 10000,
-      connectionTimeoutMs = 10000,
-      maxInFlightRequests = 10000,
-      time = Time.SYSTEM
-    )
-
-    opts.configPropsDst.setProperty(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, opts.options.valueOf(opts.kafkaConnectOptDst))
-
-    val kafkaClientDst = AdminClient.create(opts.configPropsDst)
     var exitCode = 0
-    val diffs = compareTopics(zkClientSrc.getTopicsInfo(), kafkaClientDst.getTopicsInfo())
-    try {
-      for ((topic, diff) <- diffs) {
-        if (opts.options.has(opts.mirrorOpt)) {
-          mirrorTopic(topic, diff, kafkaClientDst)
-        }
-      }
-    } catch {
-      case e: Throwable =>
-        println("Error while executing topic command : " + e.getMessage)
-        error(Utils.stackTrace(e))
-        exitCode = 1
-    } finally {
-      zkClientSrc.close()
-      kafkaClientDst.close()
-      Exit.exit(exitCode)
+
+    def onException(e: Throwable): Unit ={
+      println("Error while executing topic command : " + e.getMessage)
+      error(Utils.stackTrace(e))
+      exitCode = 1
     }
+
+    def withZkClient(f: KafkaZkClient => Unit ): Unit = {
+      try {
+        val zkClient = KafkaZkClient(
+          connectString = opts.options.valueOf(opts.zkConnectOptSrc),
+          isSecure = false,
+          sessionTimeoutMs = 10000,
+          connectionTimeoutMs = 10000,
+          maxInFlightRequests = 10000,
+          time = Time.SYSTEM
+        )
+        f(zkClient)
+      } catch {
+        case e: Exception=> onException(e)
+        case e: Error=> onException(e)
+      }
+    }
+
+    def withKafkaClient(f: AdminClient => Unit ): Unit = {
+      try {
+        opts.configPropsDst.setProperty(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, opts.options.valueOf(opts.kafkaConnectOptDst))
+        val kafkaClientDst = AdminClient.create(opts.configPropsDst)
+        f(kafkaClientDst)
+      } catch {
+        case e: Exception=> onException(e)
+        case e: Error=> onException(e)
+      }
+    }
+
+    withZkClient { zkClientSrc => {
+        withKafkaClient { kafkaClientDst => {
+            try {
+              val diffs = compareTopics(zkClientSrc.getTopicsInfo(), kafkaClientDst.getTopicsInfo())
+              for ((topic, diff) <- diffs) {
+                if (opts.options.has(opts.mirrorOpt)) {
+                  mirrorTopic(topic, diff, kafkaClientDst)
+                }
+              }
+            } catch {
+              case e: Exception=> onException(e)
+              case e: Error=> onException(e)
+
+            } finally {
+              zkClientSrc.close()
+              kafkaClientDst.close()
+              Exit.exit(exitCode)
+            }
+          }
+        }
+        zkClientSrc.close()
+        Exit.exit(exitCode)
+      }
+    }
+    Exit.exit(exitCode)
   }
 
   class TopicsMetadataUpsertCommandOptions(args: Array[String]) {
     val parser = new OptionParser(false)
-    val zkConnectOptSrc: ArgumentAcceptingOptionSpec[String] = parser.accepts("zookeeper-src", "REQUIRED: The connection string for the source zookeeper connection in the form host:port. " +
-      "Multiple hosts can be given to allow fail-over.")
+    val zkConnectOptSrc: ArgumentAcceptingOptionSpec[String] = parser.accepts("zookeeper-src", "REQUIRED: The connection string for the " +
+      "source zookeeper connection in the form host:port. Multiple hosts can be given to allow fail-over.")
       .withRequiredArg
       .describedAs("hosts")
       .ofType(classOf[String])
-    val kafkaConnectOptDst: ArgumentAcceptingOptionSpec[String] = parser.accepts("bootstrap-servers-dst", "REQUIRED: The connection string for the destination kafka connection in the form " +
-      "host:port.")
+    val kafkaConnectOptDst = parser.accepts("bootstrap-servers-dst", "REQUIRED: The connection string for the destination kafka connection " +
+      "in the form host:port.")
       .withRequiredArg
       .describedAs("hosts")
       .ofType(classOf[String])
 
-    val commandConfigPropertyOptDst: ArgumentAcceptingOptionSpec[String] = parser.accepts("command-config-property-dst", "A mechanism to pass user-defined properties in the form " +
-      "key=value to the destination kafka Admin Client connection. Multiple entries allowed.")
+    val commandConfigPropertyOptDst = parser.accepts("command-config-property-dst", "A mechanism to pass user-defined properties" +
+      "in the form key=value to the destination kafka Admin Client connection. Multiple entries allowed.")
       .withRequiredArg
       .describedAs("dst_prop")
       .ofType(classOf[String])
 
-    val diffOpt: OptionSpecBuilder = parser.accepts("diff", "List topics differences.")
-    val mirrorOpt: OptionSpecBuilder = parser.accepts("mirror", "Change or create topics on destination")
-    val helpOpt: OptionSpecBuilder = parser.accepts("help", "Print usage information.")
+    val diffOpt = parser.accepts("diff", "List topics differences.")
+    val mirrorOpt = parser.accepts("mirror", "Change or create topics on destination")
+    val helpOpt = parser.accepts("help", "Print usage information.")
 
-    val options: OptionSet = parser.parse(args: _*)
+    val options = parser.parse(args: _*)
 
-    val configPropsDst: Properties = CommandLineUtils.parseKeyValueArgs(options.valuesOf(commandConfigPropertyOptDst).asScala)
+    val configPropsDst = CommandLineUtils.parseKeyValueArgs(options.valuesOf(commandConfigPropertyOptDst).asScala)
 
     val allTopicLevelOpts: Set[OptionSpec[_]] = Set(diffOpt, mirrorOpt, helpOpt)
 

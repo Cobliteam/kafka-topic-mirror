@@ -195,37 +195,64 @@ class TopicsMirrorCommandSpec extends FeatureSpec with GivenWhenThen with TopicA
           }
       }
     }
+  }
 
-    def executeKafkaMirroring(): (Int, String, String) = {
-      var status = 0
-      val stream = new ByteArrayOutputStream()
-      val streamErr = new ByteArrayOutputStream()
-      Console.withOut(stream) {
-        Console.withErr(streamErr) {
-          try {
-            TopicsMirrorCommand.main(mirrorCommand())
-          } catch {
-            case e: ExitException =>
-              status = e.status
-          }
-        }
-      }
+  feature("Exit nicely on errors") {
+    scenario("Zookeeper connection errors") {
+      Given("that Zookeeper does not exists (hostname not found)")
+      When("topic mirror is run")
+      val (status, _, _) = executeKafkaMirroring("unreachable:2181")
+      Then("status code must be equals 1")
+      assert(status == 1)
+    }
+    scenario("Kafka is down") {
+      Given("that Kafka does not exists (hostname not found)")
+      When("topic mirror is run")
+      val (status, _, _) = executeKafkaMirroring(dstConn = "unreachable:9092")
+      Then("status code must be equals 1")
+      assert(status == 1)
+    }
+  }
+
+
+  def executeKafkaMirroring(srcConn: String = sourceConnString, dstConn: String = bootstrapServersDst): (Int, String, String) = {
+    var status = 0
+    val stream = new ByteArrayOutputStream()
+    val streamErr = new ByteArrayOutputStream()
+
+    def logAndReturn: (Int, String, String) ={
       info(stream.toString())
       info(streamErr.toString())
       (status, stream.toString(), streamErr.toString())
     }
 
-    def mirrorCommand(): Array[String] = {
 
-      val configDst = commandConfigPropertyDst.foldLeft(Array.empty[String]) {
-        (acc: Array[String], entry) => acc ++ Array("--command-config-property-dst", s"${entry._1}=${entry._2}")
+    Console.withOut(stream) {
+      Console.withErr(streamErr) {
+        try {
+          TopicsMirrorCommand.main(mirrorCommand(srcConn, dstConn))
+        } catch {
+          case e: ExitException =>
+            status = e.status
+            return logAndReturn
+        }
       }
-
-      Array(
-        "--mirror",
-        "--zookeeper-src", sourceConnString,
-        "--bootstrap-servers-dst", bootstrapServersDst,
-      ) ++ configDst
     }
+    logAndReturn
   }
+
+
+  def mirrorCommand(srcConn: String = sourceConnString, dstConn: String = bootstrapServersDst): Array[String] = {
+
+    val configDst = commandConfigPropertyDst.foldLeft(Array.empty[String]) {
+      (acc: Array[String], entry) => acc ++ Array("--command-config-property-dst", s"${entry._1}=${entry._2}")
+    }
+
+    Array(
+      "--mirror",
+      "--zookeeper-src", srcConn,
+      "--bootstrap-servers-dst", dstConn,
+    ) ++ configDst
+  }
+
 }
