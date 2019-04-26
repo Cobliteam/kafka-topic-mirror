@@ -14,4 +14,4 @@ while IFS="=" read key value; do
 done < <(env)
 
 
-java -jar kafka-topic-mirror.jar "${@}" "${DST_PROPS[@]}"
+java -jar $JAVA_OPTS $TOPIC_MIRROR_JAVA_OPTS $TOPIC_MIRROR_LOG4J_OPTS /app/kafka-topic-mirror.jar "${@}" "${DST_PROPS[@]}"
