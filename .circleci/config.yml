@@ -1,0 +1,13 @@
+version: 2.1
+jobs:
+  test:
+    docker:
+      - image: alpine
+    steps:
+      - run: "true"
+workflows:
+  version: 2
+  test:
+    jobs:
+      - test
+
