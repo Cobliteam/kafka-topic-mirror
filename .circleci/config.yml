@@ -1,13 +1,53 @@
 version: 2.1
+
+definitions:
+  multi_hash_args: &multi_hash_args
+    in-files: "build.sbt project/build.properties project/plugins.sbt"
+    out-file: /tmp/sbt-dependencies-checksum
+    cache-prefix: kafka-topic-mirror-v1
+  cache_name: &cache_name kafka-topic-mirror-v1-{{ checksum "/tmp/sbt-dependencies-checksum" }}-{{ .Branch }}
+
+orbs:
+  multi_file_hash_cache: cobli/multi-file-hash-cache@0.0.2
+  docker: circleci/docker@1.3.0
+
 jobs:
   test:
     docker:
       - image: alpine
     steps:
       - run: "true"
+  publish:
+    docker:
+      - image: circleci/openjdk:11.0.7-jdk-buster
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - multi_file_hash_cache/restore:
+          <<: *multi_hash_args
+      - docker/check
+      - run: cat /dev/null | sbt docker:publish
+      - save_cache:
+          paths:
+            - "~/.ivy2/cache"
+            - "~/.sbt"
+            - "~/.m2"
+          key: *cache_name
+
 workflows:
   version: 2
-  test:
+  test-and-publish:
     jobs:
       - test
-
+      - publish:
+          context: coblicd-dockerhub-login
+  release:
+    jobs:
+      - publish:
+          context: coblicd-dockerhub-login
+          filters:
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
+            branches:
+              ignore: /.*/
