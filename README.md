@@ -15,7 +15,7 @@ A console app that diff and mirror topics metadata from a kafka to another
 ```bash
 $ sbt run
 ....
-Diff or mirror topics between Kafkas.
+Mirror topics between Kafkas.
 Option                                   Description                            
 ------                                   -----------                            
 --bootstrap-servers-dst <String: hosts>  REQUIRED: The connection string for    
@@ -25,12 +25,11 @@ Option                                   Description
   dst_prop>                                properties in the form key=value to  
                                            the destination kafka Admin Client   
                                            connection. Multiple entries allowed.
---diff                                   List topics differences.               
+--dry-run                                Just list topics differences without   
+                                           mirroring anything.                  
 --help                                   Print usage information.               
---mirror                                 Change or create topics on destination 
 --zookeeper-src <String: hosts>          REQUIRED: The connection string for    
                                            the source zookeeper connection in   
                                            the form host:port. Multiple hosts   
-                                           can be given to allow fail-over.
-...
+                                           can be given to allow fail-over. ...
 ```

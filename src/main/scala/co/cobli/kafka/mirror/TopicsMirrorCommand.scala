@@ -16,13 +16,8 @@ object TopicsMirrorCommand extends Logging {
 
     val opts = new TopicsMetadataUpsertCommandOptions(args)
 
-    if (args.length == 0)
-      CommandLineUtils.printUsageAndDie(opts.parser, "Diff or mirror topics between Kafkas.")
-
-    // should have exactly one action
-    val actions = Seq(opts.diffOpt, opts.mirrorOpt, opts.helpOpt).count(opts.options.has)
-    if (actions != 1)
-      CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --diff or --mirror")
+    if (args.length == 0 || opts.options.hasArgument(opts.helpOpt))
+      CommandLineUtils.printUsageAndDie(opts.parser, "Mirror topics between Kafkas.")
 
     opts.checkArgs()
 
@@ -47,15 +42,12 @@ object TopicsMirrorCommand extends Logging {
       .describedAs("dst_prop")
       .ofType(classOf[String])
 
-    val diffOpt: OptionSpecBuilder = parser.accepts("diff", "List topics differences.")
-    val mirrorOpt: OptionSpecBuilder = parser.accepts("mirror", "Change or create topics on destination")
+    val dryRunOpt: OptionSpecBuilder = parser.accepts("dry-run", "Just list topics differences without mirroring anything.")
     val helpOpt: OptionSpecBuilder = parser.accepts("help", "Print usage information.")
 
     val options: OptionSet = parser.parse(args: _*)
 
     val configPropsDst: Properties = CommandLineUtils.parseKeyValueArgs(options.valuesOf(commandConfigPropertyOptDst).asScala)
-
-    val allTopicLevelOpts: Set[OptionSpec[_]] = Set(diffOpt, mirrorOpt, helpOpt)
 
     def checkArgs() {
       // check required args
