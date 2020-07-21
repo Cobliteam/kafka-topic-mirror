@@ -11,7 +11,7 @@ import org.apache.kafka.common.config.ConfigResource
 
 class TopicsReaderClient(bootstrapServers: String) {
 
-    val client: Admin = {
+    protected val client: Admin = {
       val properties = new Properties
       properties.setProperty(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
       Admin.create(properties)
@@ -44,7 +44,7 @@ class TopicsReaderClient(bootstrapServers: String) {
       ).toMap
     }
 
-    private def topicConfigResource(name: String): ConfigResource ={
+    protected def topicConfigResource(name: String): ConfigResource ={
       new ConfigResource(ConfigResource.Type.TOPIC, name)
     }
 

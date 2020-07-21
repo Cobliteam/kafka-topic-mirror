@@ -21,21 +21,45 @@ object TopicsMirrorCommand extends Logging with TopicsComparator {
       exitCode = 1
     }
 
-    def withKafkaClient(bootstrapServers: String)(callback: TopicsReaderClient => Unit ): Unit = {
+    def kafkaClientReaderFactory(bootstrapServers: String): TopicsReaderClient = { new TopicsReaderClient(bootstrapServers)}
+    def kafkaClientAdminFactory(bootstrapServers: String): TopicsAdminClient = { new TopicsAdminClient(bootstrapServers)}
+
+    def withKafkaClient[T](bootstrapServers: String, factory: String => T)(callback: T => Unit ): Unit = {
       try {
-        val kafkaClient = new TopicsReaderClient(bootstrapServers)
+        val kafkaClient = factory(bootstrapServers)
         callback(kafkaClient)
       } catch {
         case e: Throwable=> onException(e)
       }
     }
 
-    withKafkaClient(opts.sourceBootstrapServers) {sourceClient => {
-      withKafkaClient(opts.destinationBootstrapServers) { destinationClient => {
+    def mirrorTopic(name: String, diff: TopicDiff, destinationClient: TopicsAdminClient): Unit = {
+      diff.diffType match {
+        case TopicDiffType.MISSING =>
+          println(s"creating topic $name")
+          destinationClient.createTopic(diff.asNewTopic(name))
+        case TopicDiffType.DIFFER =>
+          diff.config match {
+            case Some(conf) =>
+              println(s"updating topic $name config with $conf")
+              destinationClient.alterTopicConfig(name, conf)
+            case None => ()
+          }
+          if (diff.needsManuallyIntervention()) System.err.println(s"$name needs manually intervention for $diff")
+        case TopicDiffType.EQUALS =>
+          println(s"nothing to be done for $name")
+      }
+    }
+
+    withKafkaClient(opts.sourceBootstrapServers, kafkaClientReaderFactory) {sourceClient: TopicsReaderClient => {
+      withKafkaClient(opts.destinationBootstrapServers, kafkaClientAdminFactory) { destinationClient: TopicsAdminClient => {
         try {
           val diffs = compareTopics(sourceClient.getTopicsInfo(), destinationClient.getTopicsInfo())
           for ((topic, diff) <- diffs) {
-            println(s"$topic: ${diff.toString}")
+            if (opts.isDryRun)
+              println(s"$topic: ${diff.toString}")
+            else
+              mirrorTopic(topic, diff, destinationClient)
           }
         } catch {
           case e: Throwable => onException(e)
