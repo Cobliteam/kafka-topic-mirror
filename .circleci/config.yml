@@ -6,17 +6,55 @@ definitions:
     out-file: /tmp/sbt-dependencies-checksum
     cache-prefix: kafka-topic-mirror-v1
   cache_name: &cache_name kafka-topic-mirror-v1-{{ checksum "/tmp/sbt-dependencies-checksum" }}-{{ .Branch }}
+  zookeeper_container_specs: &zookeeper_container_specs 
+    image: confluentinc/cp-kafka:5.1.2
+    command:
+      - /usr/bin/zookeeper-server-start
+      - /etc/kafka/zookeeper.properties
+    environment:
+      ZOO_MY_ID: "1"
+      ZOO_SERVERS: server.1=0.0.0.0:2888:3888
 
 orbs:
   multi_file_hash_cache: cobli/multi-file-hash-cache@0.0.2
   docker: circleci/docker@1.3.0
+  wait_for: cobli/wait-for@0.0.2
 
 jobs:
   test:
     docker:
-      - image: alpine
+      - image: circleci/openjdk:11.0.7-jdk-buster
+      - name: zoo-src
+        <<: *zookeeper_container_specs
+      - name: zoo-dst
+        <<: *zookeeper_container_specs
+      - image: confluentinc/cp-kafka:5.1.2
+        environment:
+          KAFKA_BROKER_ID: "1"
+          KAFKA_ZOOKEEPER_CONNECT: zoo-src:2181
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      - image: confluentinc/cp-kafka:5.1.2
+        environment:
+          KAFKA_BROKER_ID: "1"
+          KAFKA_ZOOKEEPER_CONNECT: zoo-dst:2181
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:29092
     steps:
-      - run: "true"
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - multi_file_hash_cache/restore:
+          <<: *multi_hash_args
+      - wait_for/kafka:
+          zookeeper-host: zoo-src
+      - wait_for/kafka:
+          zookeeper-host: zoo-dst
+      - run: cat /dev/null | sbt test
+      - save_cache:
+          paths:
+            - "~/.ivy2/cache"
+            - "~/.sbt"
+            - "~/.m2"
+          key: *cache_name
   publish:
     docker:
       - image: circleci/openjdk:11.0.7-jdk-buster
@@ -42,6 +80,8 @@ workflows:
       - test
       - publish:
           context: coblicd-dockerhub-login
+          requires:
+            - test
   release:
     jobs:
       - publish:
