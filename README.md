@@ -3,8 +3,6 @@
 A console app that diff and mirror topics metadata from a kafka to another
 
 ## WARNINGS
-**Source kafka must access zookeeper**
-
 **This app does not remove topics**
 
 **This app does not replicate partition reassignments**
