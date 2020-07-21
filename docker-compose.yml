@@ -1,0 +1,74 @@
+version: '3.4'
+
+x-zoo-healthcheck: &zoo-healthcheck
+  test: ["CMD", "echo", "srvr", "|", "nc", "-w", "1", "127.0.0.1","2181","|", "grep", "-qi", "zookeeper"]
+  interval: 5s
+  timeout: 1s
+  retries: 5
+
+x-kafka-healthcheck: &kafka-healthcheck
+  test: ["CMD", "kafka-topics", "--list", "--zookeeper", "xxx"]
+  interval: 5s
+  timeout: 10s
+  retries: 6
+
+
+services:
+
+  zoo-src:
+    image: confluentinc/cp-kafka:5.1.2
+    restart: always
+    command:
+      - /usr/bin/zookeeper-server-start
+      - /etc/kafka/zookeeper.properties
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=0.0.0.0:2888:3888
+    healthcheck:
+      <<: *zoo-healthcheck
+
+  kafka-src:
+    image: confluentinc/cp-kafka:5.1.2
+    restart: always
+    depends_on:
+      - zoo-src
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zoo-src:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+    healthcheck:
+      <<: *kafka-healthcheck
+      test: ["CMD", "kafka-topics", "--list", "--zookeeper", "zoo-dst:2181"]
+
+
+  zoo-dst:
+    image: confluentinc/cp-kafka:5.1.2
+    restart: always
+    command:
+      - /usr/bin/zookeeper-server-start
+      - /etc/kafka/zookeeper.properties
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=0.0.0.0:2888:3888
+    healthcheck:
+      <<: *zoo-healthcheck
+
+  kafka-dst:
+    image: confluentinc/cp-kafka:5.1.2
+    restart: always
+    depends_on:
+      - zoo-dst
+    ports:
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zoo-dst:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:29092
+    healthcheck:
+      <<: *kafka-healthcheck
+      test: ["CMD", "kafka-topics", "--list", "--zookeeper", "zoo-dst:2181"]
+
+
+
