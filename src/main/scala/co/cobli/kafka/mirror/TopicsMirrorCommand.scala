@@ -21,10 +21,10 @@ object TopicsMirrorCommand extends Logging with TopicsComparator {
       exitCode = 1
     }
 
-    def withKafkaClient(bootstrapServers: String)(f: TopicsReaderClient => Unit ): Unit = {
+    def withKafkaClient(bootstrapServers: String)(callback: TopicsReaderClient => Unit ): Unit = {
       try {
         val kafkaClient = new TopicsReaderClient(bootstrapServers)
-        f(kafkaClient)
+        callback(kafkaClient)
       } catch {
         case e: Throwable=> onException(e)
       }
@@ -40,13 +40,10 @@ object TopicsMirrorCommand extends Logging with TopicsComparator {
         } catch {
           case e: Throwable => onException(e)
         } finally {
-          sourceClient.close()
           destinationClient.close()
-          Exit.exit(exitCode)
         }
       }}
       sourceClient.close()
-      Exit.exit(exitCode)
     }}
     Exit.exit(exitCode)
   }
